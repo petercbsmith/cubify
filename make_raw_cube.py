@@ -1,15 +1,12 @@
 """
-VERSION 1.0.0
+VERSION 1.0.1
 
-PREVIOUS VERSION: 0.11.0, released 06/06/2024
+PREVIOUS VERSION: 1.0.0, released 10/03/2024
 
 NEW FEATURES:
-    do_sysrem method, which does sysrem
-    for align method, can choose whether to align to the first or last frame
-    can get a nan mask when doing wavelength alignment (also in SVD process)
-    Added get_error_PLP method which gets errors from the PLP variance.
 
 BUG FIXES:
+    removed extraneous call of .tdb method from times already in BJD
 
 """
 import numpy as np
@@ -336,7 +333,8 @@ class Planet:
             timecorrection = frame_time.light_travel_time(sc,'barycentric', gems)
             frame_time_bjd = frame_time.tdb + timecorrection
             time_arr.append(frame_time_bjd.value[0])
-            ph = (frame_time_bjd.tdb.value - T0.tdb.value)/self.period % 1
+            # ph = (frame_time_bjd.tdb.value - T0.tdb.value)/self.period % 1
+            ph = (frame_time_bjd.value - T0.value)/self.period % 1
             baryvelcorr = sc.radial_velocity_correction(obstime=frame_time,location=gems)
             ph_arr.append(ph)
             rvel_arr.append(baryvelcorr)
@@ -1422,6 +1420,18 @@ reported in FITS headers are wrong. Removed ID arg from save(). Added more docst
 
 
 ################################## VERSION HISTORY ##############################
+VERSION 1.0.0
+
+PREVIOUS VERSION: 0.11.0, released 06/06/2024
+
+NEW FEATURES:
+    do_sysrem method, which does sysrem
+    for align method, can choose whether to align to the first or last frame
+    can get a nan mask when doing wavelength alignment (also in SVD process)
+    Added get_error_PLP method which gets errors from the PLP variance.
+
+BUG FIXES:
+*********************************************************************************
 VERSION 0.11.0
 06/06/2024
 
@@ -1487,5 +1497,6 @@ NEW FEATURES:
 BUG FIXES:
     read_TEPCAT adds an underscore into planet names from the HD catalogue to 
     match the URL.
+
 
 """
