@@ -517,7 +517,7 @@ class Planet:
         '''
 
         data = self.data_raw.copy() 
-        wlgrid = self.wlgrid
+        wlgrid = self.wlgrid.copy()
         med_snr_per_order = self.med_snr_per_order
 
         if whichorders == None:
@@ -592,7 +592,7 @@ class Planet:
 
         self.corrections = corrections #you can plot this later if you want...
 
-        return wlgrid, data
+        return wlgrid, corrected_data
 
 
     def do_svd(self, NPC = 4, interpolation=False):
