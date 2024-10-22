@@ -516,7 +516,7 @@ class Planet:
                  data - corrected data
         '''
 
-        data = self.data_raw 
+        data = self.data_raw.copy() 
         wlgrid = self.wlgrid
         med_snr_per_order = self.med_snr_per_order
 
