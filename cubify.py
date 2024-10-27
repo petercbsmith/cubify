@@ -1,13 +1,14 @@
 """
-VERSION 1.0.2, released 10/22/2024
+VERSION 1.1.0, released 10/17/2024
 
-PREVIOUS VERSION: 1.0.1, released 10/07/2024
+PREVIOUS VERSION: 1.0.2, released 10/22/2024
 
 NEW FEATURES:
+    Some improvements to the get_params method. References are
+    now sorted by most recent.
 
 BUG FIXES:
-    fixed error in align() method where whichorders variable was
-    called before it was defined. Thanks Krishna for finding this.
+    Fixed issue where nanmask is called in align before definition
 
 """
 import numpy as np
@@ -57,7 +58,7 @@ class Planet:
         self.planetname = planetname
         self.path = path
 
-    def get_params(self, ref=None, get_RV=False, source='tepcat'):
+    def get_params(self, ref=None, get_RV=False, source='tepcat', which='most complete'):
         """
         Get orbital and positional parameters necessary for calculating
         the orbtial phase and radial velocity of planet-star system.
@@ -73,7 +74,7 @@ class Planet:
             RA, DEC, Tdur, T0, period, RV = self.read_TEPCAT(ref, get_RV)
 
         elif source == 'nea':
-            period, T0, RV, RA, DEC, Tdur = self.read_NEA(ref, get_RV)
+            period, T0, RV, RA, DEC, Tdur = self.read_NEA(ref, get_RV, which)
 
         self.period = period
         self.T0 = T0
@@ -84,7 +85,7 @@ class Planet:
 
         return period, T0, RV, RA, DEC, Tdur
 
-    def read_NEA(self, ref, get_RV):
+    def read_NEA(self, ref, get_RV, which='most complete'):
         '''
         Use Astroquery to query the NASA Exoplanet Archive so you don't have to look it up yourself.
         If there is a specific reference you want to use, put the first author's last name as the optional
@@ -97,19 +98,30 @@ class Planet:
             # mask = (ref in params['pl_refname']) ## FIX THIS
             mask = [i for i, refs in enumerate(params['pl_refname']) if ref in refs]
         else:
-            mask = np.isfinite(params['st_radv']) #take sources that had a system RV.
-            print('Taking values from',params['pl_refname'][mask][0])
+            # mask = np.isfinite(params['st_radv']) #take sources that had a system RV.
+            if which == 'most complete':
+                mask = (np.isfinite(params['st_radv'])) & (np.isfinite(params['pl_orbper'])) & np.isfinite(params['pl_tranmid']) &  np.isfinite(params['pl_trandur'])
+            elif which == 'most recent':
+                mask = np.ones(len(params)).astype(bool)
+            else:
+                print("Not sure which reference to take? Here they are:")
+                print(params['pl_refname'])
+                return None, None, None, None, None, None
+            #sort by year
+            sorted_refs = sorted(params['pl_refname'][mask], key=lambda x: x.split()[1][-4:], reverse=True)
+            params = params[ params['pl_refname'] == sorted_refs[0] ]
+            print('Taking values from',sorted_refs[0])
             if True not in mask:
                 print(params['pl_refname'])
                 ref = input('Please specify reference:')
                 mask = (ref in params['pl_refname']) ## FIX THIS
                 
-        period = params['pl_orbper'][mask][0].value #orbital period in days
-        T0 = params['pl_tranmid'][mask][0].value #time of mid transit in BJD
-        RV = params['st_radv'][mask][0].value #system velocity in km/s
-        RA = params['rastr'][mask][0] #right ascension. string
-        DEC = params['decstr'][mask][0] #declincation. string
-        Tdur = params['pl_trandur'][mask][0].value #transit duration in hour
+        period = params['pl_orbper'].value[0] #orbital period in days
+        T0 = params['pl_tranmid'].value[0] #time of mid transit in BJD
+        RV = params['st_radv'].value[0] #system velocity in km/s
+        RA = params['rastr'][0] #right ascension. string
+        DEC = params['decstr'][0] #declincation. string
+        Tdur = params['pl_trandur'].value[0] #transit duration in hour
 
         if get_RV == False:
             RV = 0.
@@ -173,13 +185,15 @@ class Planet:
         #if you want to read in an RV, we'll have to use astroquery to get if
         #from NEA bc TEPCAT doesn't list it 
         if get_RV == True:
-            params = query.query_criteria(table='ps',select="st_refname, st_radv", where="pl_name like '{}'".format(self.planetname))
+            params = query.query_criteria(table='ps',select="pl_refname, st_refname, st_radv", where="pl_name like '{}'".format(self.planetname))
             if ref:
                 mask = [i for i, refs in enumerate(params['st_refname']) if ref in refs]
             else:
                 mask = np.isfinite(params['st_radv']) #take sources that had a system RV.
-                print('Taking values from',params['st_refname'][mask][0])
-            RV = params['st_radv'][mask][0].value
+                sorted_refs = sorted(params['pl_refname'][mask], key=lambda x: x.split()[1][-4:], reverse=True)
+                params = params[ params['pl_refname'] == sorted_refs[0] ]
+                print('Taking values from',params['st_refname']) #most recent one
+            RV = params['st_radv'].value[0]
         else:
             RV = 0.
 
@@ -615,6 +629,7 @@ class Planet:
         pca_data =  np.zeros(cube.shape)
         pca_scale = np.zeros(cube.shape)
         singular_values = np.zeros((Ndet, Nphi))
+        nanmask = self.nanmask
 
         if interpolation == True:
             print('Doing SVD. This takes a minute because we are interpolating over nans...')
@@ -1402,6 +1417,16 @@ class AutoMLRPCA:
 
 ################################## VERSION HISTORY ##############################
 """
+VERSION 1.0.2, released 10/22/2024
+
+PREVIOUS VERSION: 1.0.1, released 10/07/2024
+
+NEW FEATURES:
+
+BUG FIXES:
+    fixed error in align() method where whichorders variable was
+    called before it was defined. Thanks Krishna for finding this.
+**************************************************************************
 VERSION 1.0.1
 
 PREVIOUS VERSION: 1.0.0, released 10/03/2024
