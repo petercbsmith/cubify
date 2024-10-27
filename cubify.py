@@ -1,5 +1,5 @@
 """
-VERSION 1.1.0, released 10/17/2024
+VERSION 1.1.0, released 10/27/2024
 
 PREVIOUS VERSION: 1.0.2, released 10/22/2024
 
