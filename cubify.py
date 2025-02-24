@@ -237,8 +237,11 @@ class Planet:
         '''Initialize Orbital params'''
         first_frame = filesH[0]
         start = fits.open(first_frame)
-        start_time = Time(start[0].header['JD-OBS'], format='jd')
+
+        # start_time = Time(start[0].header['JD-OBS'], format='jd')
         location = start[0].header['TELESCOP']
+        if location == 'Gemini-North':
+            location = 'gemini_north'
 
         # radec = start[0].header['USERRA'] + '\t' + start[0].header['USERDEC']
         radec = self.RA + '\t' + self.DEC 
@@ -332,14 +335,26 @@ class Planet:
             am = np.mean([am_start, am_end])
             am_arr.append(am)
 
-            hum = hdu[0].header['HUMIDITY']
-            hum_arr.append(hum)
+            instrument = hdu[0].header['INSTRUME']
+            if instrument == 'IGRINS-2':
+                frame_start = hdu[0].header['UTSTART']
+                frame_end = hdu[0].header['UTEND']
 
-            frame_start = hdu[0].header['JD-OBS']
-            frame_end = hdu[0].header['JD-END']
-            
-            t1 = Time(frame_start, format='jd')
-            t2 = Time(frame_end, format='jd')
+                t1 = Time(frame_start, format='isot', scale='utc')
+                t2 = Time(frame_end, format='isot', scale='utc')
+
+                hum = np.nan 
+                hum_arr.append(hum)
+
+            else:
+                hum = hdu[0].header['HUMIDITY']
+                hum_arr.append(hum)
+
+                frame_start = hdu[0].header['JD-OBS']
+                frame_end = hdu[0].header['JD-END']
+                
+                t1 = Time(frame_start, format='jd')
+                t2 = Time(frame_end, format='jd')
 
             # frame_time = t1 + 0.5*Texp #"average" time of the A frame
             frame_time = Time(0.5 * (t1.jd + t2.jd), format='jd') #average time of AB frame
