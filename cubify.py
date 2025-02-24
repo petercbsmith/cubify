@@ -220,6 +220,10 @@ class Planet:
         filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
         filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
 
+        #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
+        filesH = [file for file in filesH if "sum" not in file]
+        filesK = [file for file in filesK if "sum" not in file]
+
         '''Construct Wavelength grid'''
         last_frameH =  filesH[-1]
         last_frameK = filesK[-1]
@@ -274,13 +278,23 @@ class Planet:
         filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
         filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
 
+        #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
+        filesH = [file for file in filesH if "sum" not in file]
+        filesK = [file for file in filesK if "sum" not in file]
+
         '''SNR'''
         snrfilesH = sorted(glob.glob(self.path+'SDCH*.sn.fits'))
         snrfilesK = sorted(glob.glob(self.path+'SDCK*.sn.fits'))
 
+        snrfilesH = [file for file in snrfilesH if "sum" not in file]
+        snrfilesK = [file for file in snrfilesK if "sum" not in file]
+
         '''Variance'''
         varfilesH = sorted(glob.glob(self.path+'SDCH*.variance.fits'))
         varfilesK = sorted(glob.glob(self.path+'SDCK*.variance.fits'))
+
+        varfilesH = [file for file in varfilesH if "sum" not in file]
+        varfilesK = [file for file in varfilesK if "sum" not in file]
 
         Nphi = len(filesH) #number of frames
         Ndet, Npix = wlgrid.shape #orders, wavelength channels
