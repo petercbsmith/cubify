@@ -1,14 +1,16 @@
 """
-VERSION 1.1.0, released 10/27/2024
+VERSION 1.2.0, released 07/26/2025
 
-PREVIOUS VERSION: 1.0.2, released 10/22/2024
+PREVIOUS VERSION: 1.1.0, released 10/27/2024
 
 NEW FEATURES:
-    Some improvements to the get_params method. References are
-    now sorted by most recent.
+    New fmt argument for the cubify method that enables reading
+    in fits files in the Gemini Obervatory Archive Format.
+
+    In align method, sdded the condition that SNR values cannot
+    be less then 0 when selecting orders by SNR.
 
 BUG FIXES:
-    Fixed issue where nanmask is called in align before definition
 
 """
 import numpy as np
@@ -205,7 +207,7 @@ class Planet:
             string = string[0].split('+')
         return float(string[0])
 
-    def initialize(self):
+    def initialize(self, fmt='PLP'):
         '''
         Initialize some orbital params and stuff for a planet object
         Inputs: 
@@ -217,23 +219,33 @@ class Planet:
             sc: SkyCoord object for the target
             gems: EarthLocation object of the observatory
         '''
-        filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
-        filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
 
-        #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
-        filesH = [file for file in filesH if "sum" not in file]
-        filesK = [file for file in filesK if "sum" not in file]
+        if fmt == 'PLP':
+            filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
+            filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
+
+            #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
+            filesH = [file for file in filesH if "sum" not in file]
+            filesK = [file for file in filesK if "sum" not in file]
+
+            wlidx = 1
+
+        elif fmt == 'GOA':
+            filesH = sorted(glob.glob(self.path+'*_H.spec.fits'))
+            filesK = sorted(glob.glob(self.path+'*_K.spec.fits'))
+
+            wlidx = 3
 
         '''Construct Wavelength grid'''
         last_frameH =  filesH[-1]
-        last_frameK = filesK[-1]
+        last_frameK = filesK[-1]            
 
         wlfits = fits.open(last_frameH)
-        wlgridH = wlfits[1].data
+        wlgridH = wlfits[wlidx].data       
         wlfits.close()
 
         wlfits = fits.open(last_frameK)
-        wlgridK = wlfits[1].data
+        wlgridK = wlfits[wlidx].data
         wlfits.close()
 
         wlgrid = np.concatenate([wlgridK, wlgridH])
@@ -262,39 +274,48 @@ class Planet:
 
         return wlgrid, T0, sc, gems
 
-    def cubify(self):
+    def cubify(self, fmt='PLP'):
         '''
         Inputs:
             Planet object
+            fmt: fits filename format
         Outputs:
             wlgrid: array of dim Ndet x Npix
             cube: array of dim Ndet x Nphi x Npix
             ph_arr: orbital phases
             Rvel: radial velocity
         '''
-        wlgrid, T0, sc, gems = self.initialize()
+        wlgrid, T0, sc, gems = self.initialize(fmt=fmt)
 
         '''Lets start cubin'''
-        filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
-        filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
+        if fmt == 'PLP':
+            datidx = 0
 
-        #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
-        filesH = [file for file in filesH if "sum" not in file]
-        filesK = [file for file in filesK if "sum" not in file]
+            filesH = sorted(glob.glob(self.path+'SDCH*.spec.fits'))
+            filesK = sorted(glob.glob(self.path+'SDCK*.spec.fits'))
 
-        '''SNR'''
-        snrfilesH = sorted(glob.glob(self.path+'SDCH*.sn.fits'))
-        snrfilesK = sorted(glob.glob(self.path+'SDCK*.sn.fits'))
+            #have to add this bc weird new .sum.spec files for IGRINS-2 PLP
+            filesH = [file for file in filesH if "sum" not in file]
+            filesK = [file for file in filesK if "sum" not in file]
 
-        snrfilesH = [file for file in snrfilesH if "sum" not in file]
-        snrfilesK = [file for file in snrfilesK if "sum" not in file]
+            '''SNR'''
+            snrfilesH = sorted(glob.glob(self.path+'SDCH*.sn.fits'))
+            snrfilesK = sorted(glob.glob(self.path+'SDCK*.sn.fits'))
 
-        '''Variance'''
-        varfilesH = sorted(glob.glob(self.path+'SDCH*.variance.fits'))
-        varfilesK = sorted(glob.glob(self.path+'SDCK*.variance.fits'))
+            snrfilesH = [file for file in snrfilesH if "sum" not in file]
+            snrfilesK = [file for file in snrfilesK if "sum" not in file]
 
-        varfilesH = [file for file in varfilesH if "sum" not in file]
-        varfilesK = [file for file in varfilesK if "sum" not in file]
+            '''Variance'''
+            varfilesH = sorted(glob.glob(self.path+'SDCH*.variance.fits'))
+            varfilesK = sorted(glob.glob(self.path+'SDCK*.variance.fits'))
+
+            varfilesH = [file for file in varfilesH if "sum" not in file]
+            varfilesK = [file for file in varfilesK if "sum" not in file]
+
+        elif fmt == 'GOA':
+            datidx = 1
+            filesH = sorted(glob.glob(self.path+'*_H.spec.fits'))
+            filesK = sorted(glob.glob(self.path+'*_K.spec.fits'))
 
         Nphi = len(filesH) #number of frames
         Ndet, Npix = wlgrid.shape #orders, wavelength channels
@@ -309,30 +330,61 @@ class Planet:
         am_arr = [] #air mass
         hum_arr = [] #humidity
         Texp_arr = []
+
+        ### SNR and VAR ###
+        if fmt == 'PLP':
+            for i in range(Nphi):
+                #### SNR ####
+                hdu = fits.open(snrfilesH[i])
+                snr_H = hdu[0].data
+                hdu.close()
+
+                hdu = fits.open(snrfilesK[i])
+                snr_K = hdu[0].data
+                hdu.close()
+
+                snr = np.concatenate([snr_K, snr_H])
+                snr_raw[:,i] = snr
+
+                #### VARIANCE ####
+                hdu = fits.open(varfilesH[i])
+                var_H = hdu[0].data 
+                hdu.close()
+
+                hdu = fits.open(varfilesK[i])
+                var_K = hdu[0].data 
+                hdu.close()
+
+                var = np.concatenate([var_K, var_H])
+                var_raw[:,i] = var
+
+        elif fmt == 'GOA': #in the GOA format, everything is in the same file
+            for i in range(Nphi):
+                hdu = fits.open(filesH[i])
+
+                image_dataH = hdu[1].data 
+                var_H = hdu[2].data 
+
+                snr_H = image_dataH / np.sqrt(var_H)
+                hdu.close()
+
+                hdu = fits.open(filesK[i])
+                image_dataK = hdu[2].data
+                var_K = hdu[2].data 
+
+                snr_K = image_dataK / np.sqrt(var_K)
+                hdu.close()
+
+                var = np.concatenate([var_K, var_H])
+                var_raw[:,i] = var 
+
+                snr = np.concatenate([snr_K, snr_H])
+                snr_raw[:,i] = snr
+
+                data = np.concatenate([image_dataK,image_dataH])
+                data_raw[:,i,:] = data
+
         for i in range(Nphi):
-            #### SNR ####
-            hdu = fits.open(snrfilesH[i])
-            snr_H = hdu[0].data
-            hdu.close()
-
-            hdu = fits.open(snrfilesK[i])
-            snr_K = hdu[0].data
-            hdu.close()
-
-            snr = np.concatenate([snr_K, snr_H])
-            snr_raw[:,i] = snr
-
-            #### VARIANCE ####
-            hdu = fits.open(varfilesH[i])
-            var_H = hdu[0].data 
-            hdu.close()
-
-            hdu = fits.open(varfilesK[i])
-            var_K = hdu[0].data 
-            hdu.close()
-
-            var = np.concatenate([var_K, var_H])
-            var_raw[:,i] = var
 
             #### DATA ####
             hdu = fits.open(filesH[i])
@@ -385,8 +437,9 @@ class Planet:
 
             hdu.close()
 
-            data = np.concatenate([image_dataK,image_dataH])
-            data_raw[:,i,:] = data
+            if fmt == 'PLP': #will return NoneType if its GOA format
+                data = np.concatenate([image_dataK,image_dataH])
+                data_raw[:,i,:] = data
 
         ph_arr = np.asarray(ph_arr)
         ph_arr[ph_arr > 0.8] -= 1.
@@ -562,12 +615,13 @@ class Planet:
         data = self.data_raw.copy() 
         wlgrid = self.wlgrid.copy()
         med_snr_per_order = self.med_snr_per_order
+        min_snr_per_order = self.min_snr_per_order
 
         if whichorders == None:
             whichorders=[ 2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,17, 18,19,20,27,28, 29, 30, 31, 32, 33,34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,48,49,50,51]
 
         else:
-            whichorders = (med_snr_per_order > min_snr) #which orders have a median SNR above some set minimum
+            whichorders = (med_snr_per_order > min_snr) & (min_snr_per_order > 0) #which orders have a median SNR above some set minimum
 
         data = data[whichorders, :, 100:-100]
         wlgrid = wlgrid[whichorders, 100:-100]
@@ -1064,10 +1118,10 @@ class Planet:
         snr= self.snr_raw
         wlgrid = self.wlgrid
 
-        med_snr = np.nanmedian(snr, axis=1)
-        med_per_order = np.nanmedian(med_snr, axis=1)
-        med_snr[med_snr < 0.] = 0.
-        med_per_order[med_per_order < 0.] = 0.
+        med_snr = np.nanmedian(snr, axis=1) #median in time per order
+        med_per_order = np.nanmedian(med_snr, axis=1) #median over wavelength per order
+        # med_snr[med_snr < 0.] = 0.
+        # med_per_order[med_per_order < 0.] = 0.
 
         medH = np.nanmedian(np.rollaxis(snr, 1)[:,wlgrid < 1.85])
         medK = np.nanmedian(np.rollaxis(snr, 1)[:,wlgrid > 1.85])
@@ -1087,6 +1141,7 @@ class Planet:
 
         self.med_snr = med_snr
         self.med_snr_per_order = med_per_order
+        self.min_snr_per_order = np.nanmin(med_snr, axis=1) #minimum SNR per order
 
         return med_snr
 
