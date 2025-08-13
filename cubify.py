@@ -1,16 +1,13 @@
 """
-VERSION 1.2.0, released 07/26/2025
+VERSION 1.2.1, released 08/13/2025
 
-PREVIOUS VERSION: 1.1.0, released 10/27/2024
+PREVIOUS VERSIONL 1.2.0, released 07/26/2025
 
 NEW FEATURES:
-    New fmt argument for the cubify method that enables reading
-    in fits files in the Gemini Obervatory Archive Format.
-
-    In align method, sdded the condition that SNR values cannot
-    be less then 0 when selecting orders by SNR.
 
 BUG FIXES:
+    Fixed bug that read in K band variance for image data in the 
+    GOA format.
 
 """
 import numpy as np
@@ -258,6 +255,8 @@ class Planet:
         location = start[0].header['TELESCOP']
         if location == 'Gemini-North':
             location = 'gemini_north'
+        elif location == 'Gemini-South':
+            location='gemini_south'
 
         # radec = start[0].header['USERRA'] + '\t' + start[0].header['USERDEC']
         radec = self.RA + '\t' + self.DEC 
@@ -347,16 +346,17 @@ class Planet:
                 snr_raw[:,i] = snr
 
                 #### VARIANCE ####
-                hdu = fits.open(varfilesH[i])
-                var_H = hdu[0].data 
-                hdu.close()
+                if len(varfilesH) > 0:
+                    hdu = fits.open(varfilesH[i])
+                    var_H = hdu[0].data 
+                    hdu.close()
 
-                hdu = fits.open(varfilesK[i])
-                var_K = hdu[0].data 
-                hdu.close()
+                    hdu = fits.open(varfilesK[i])
+                    var_K = hdu[0].data 
+                    hdu.close()
 
-                var = np.concatenate([var_K, var_H])
-                var_raw[:,i] = var
+                    var = np.concatenate([var_K, var_H])
+                    var_raw[:,i] = var
 
         elif fmt == 'GOA': #in the GOA format, everything is in the same file
             for i in range(Nphi):
@@ -369,7 +369,7 @@ class Planet:
                 hdu.close()
 
                 hdu = fits.open(filesK[i])
-                image_dataK = hdu[2].data
+                image_dataK = hdu[1].data
                 var_K = hdu[2].data 
 
                 snr_K = image_dataK / np.sqrt(var_K)
@@ -440,6 +440,10 @@ class Planet:
             if fmt == 'PLP': #will return NoneType if its GOA format
                 data = np.concatenate([image_dataK,image_dataH])
                 data_raw[:,i,:] = data
+
+                if len(varfilesH) == 0:
+                    var = (data / snr)**2
+                    var_raw[:,i] = var
 
         ph_arr = np.asarray(ph_arr)
         ph_arr[ph_arr > 0.8] -= 1.
@@ -1501,6 +1505,20 @@ class AutoMLRPCA:
 
 ################################## VERSION HISTORY ##############################
 """
+VERSION 1.2.0, released 07/26/2025
+
+PREVIOUS VERSION: 1.1.0, released 10/27/2024
+
+NEW FEATURES:
+    New fmt argument for the cubify method that enables reading
+    in fits files in the Gemini Obervatory Archive Format.
+
+    In align method, sdded the condition that SNR values cannot
+    be less then 0 when selecting orders by SNR.
+
+BUG FIXES:
+********************************************************************
+
 VERSION 1.0.2, released 10/22/2024
 
 PREVIOUS VERSION: 1.0.1, released 10/07/2024
